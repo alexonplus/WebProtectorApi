@@ -2,14 +2,14 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WebProtectorApi.Data;
-using WebProtectorApi.Models;
+using WebProtectorApi.Entities;
 using WebProtectorApi.Services;
 
 namespace WebProtectorApi.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize] // Only logged in users can scan
+    [Authorize] // Enforce JWT authentication for all scanner actions
     public class ScannerController : ControllerBase
     {
         private readonly WebProtectorDbContext _context;
@@ -28,20 +28,32 @@ namespace WebProtectorApi.Controllers
             if (string.IsNullOrEmpty(url))
                 return BadRequest("URL is required");
 
-            // Perform the scan using our service
-            var report = await _scannerService.ScanUrlAsync(url);
+            // 1. Perform local security analysis via service
+            var reportResult = await _scannerService.PerformLocalCheck(url);
 
-            // Save the report to the database
-            _context.ScanReports.Add(report);
+            // 2. Map service results to the ScanReport entity
+            var scanReport = new ScanReport
+            {
+                Url = url,
+                FoundIssues = reportResult, // Storing detailed text report
+                SecurityGrade = "A",        // Default grade for initial scan
+                SecurityScore = 100,        // Default score
+                ScannedAt = DateTime.Now,   // Timestamp of the operation
+                UserNote = string.Empty
+            };
+
+            // 3. Persist the report to the SQL database
+            _context.ScanReports.Add(scanReport);
             await _context.SaveChangesAsync();
 
-            return Ok(report);
+            return Ok(scanReport);
         }
 
         // GET: api/Scanner/reports
         [HttpGet("reports")]
         public async Task<ActionResult<IEnumerable<ScanReport>>> GetMyReports()
         {
+            // Retrieve all scan history from the database
             return await _context.ScanReports.ToListAsync();
         }
 
@@ -52,6 +64,7 @@ namespace WebProtectorApi.Controllers
             var report = await _context.ScanReports.FindAsync(id);
             if (report == null) return NotFound();
 
+            // Allow users to add manual security notes to specific reports
             report.UserNote = note;
             await _context.SaveChangesAsync();
 
