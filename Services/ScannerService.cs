@@ -1,4 +1,6 @@
-﻿using WebProtectorApi.Models;
+﻿using System.Net.Http;
+using System.Text;
+using System.Linq;
 
 namespace WebProtectorApi.Services
 {
@@ -9,52 +11,49 @@ namespace WebProtectorApi.Services
         public ScannerService(HttpClient httpClient)
         {
             _httpClient = httpClient;
+            // timeout for site dont stuck the scanner
+            _httpClient.Timeout = TimeSpan.FromSeconds(10);
         }
 
-        public async Task<ScanReport> ScanUrlAsync(string url)
+        public async Task<string> PerformLocalCheck(string url)
         {
-            var report = new ScanReport { Url = url, ScannedAt = DateTime.Now };
+            var report = new StringBuilder();
+            report.AppendLine($"--- Local Security Report for {url} ---");
 
             try
             {
                 var response = await _httpClient.GetAsync(url);
-                int score = 100;
-                string issues = "";
+                var headers = response.Headers;
 
-                // simple checks for demonstration purposes
-                if (!url.StartsWith("https"))
-                {
-                    score -= 40;
-                    issues += "Missing HTTPS. ";
-                }
+                // 1. (Headers)
+                CheckHeader(headers, "X-Frame-Options", report);
+                CheckHeader(headers, "Content-Security-Policy", report);
+                CheckHeader(headers, "Strict-Transport-Security", report);
 
-                if (!response.Headers.Contains("X-Frame-Options"))
-                {
-                    score -= 20;
-                    issues += "Clickjacking protection (X-Frame-Options) missing. ";
-                }
+                if (headers.Contains("Server"))
+                    report.AppendLine("[WARNING] Server info leaked: " + headers.GetValues("Server").FirstOrDefault());
 
-                report.SecurityScore = score;
-                report.FoundIssues = string.IsNullOrEmpty(issues) ? "No major issues found." : issues;
-                report.SecurityGrade = CalculateGrade(score);
+                // 2.(Body)
+                var body = await response.Content.ReadAsStringAsync();
+                if (body.Contains("<script") && !body.Contains("nonce"))
+                    report.AppendLine("[ADVICE] Scripts found without CSP nonces. Vulnerable to XSS.");
+
+                report.AppendLine("--- Local Check Finished ---");
             }
             catch (Exception ex)
             {
-                report.FoundIssues = $"Error scanning site: {ex.Message}";
-                report.SecurityGrade = "F";
-                report.SecurityScore = 0;
+                report.AppendLine("[ERROR] Could not reach the site: " + ex.Message);
             }
 
-            return report;
+            return report.ToString();
         }
 
-        private string CalculateGrade(int score) => score switch
+        private void CheckHeader(System.Net.Http.Headers.HttpResponseHeaders headers, string headerName, StringBuilder report)
         {
-            >= 90 => "A",
-            >= 75 => "B",
-            >= 50 => "C",
-            >= 30 => "D",
-            _ => "F"
-        };
+            if (!headers.Contains(headerName))
+                report.AppendLine($"[CRITICAL] Missing security header: {headerName}!");
+            else
+                report.AppendLine($"[OK] {headerName} is present.");
+        }
     }
 }

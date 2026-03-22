@@ -1,4 +1,4 @@
-﻿namespace WebProtectorApi.Models
+﻿namespace WebProtectorApi.Entities
 {
     public class ScanReport
     {
