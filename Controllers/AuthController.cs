@@ -33,7 +33,7 @@ namespace WebProtectorApi.Controllers
             var user = new User
             {
                 Username = dto.Username,
-                Role = dto.Role,
+                Role = "User",
                 // heshing password using BCrypt
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password)
             };

@@ -70,5 +70,31 @@ namespace WebProtectorApi.Controllers
 
             return NoContent();
         }
+
+
+        // GET: api/Scanner/report/{id}
+        [HttpGet("report/{id}")]
+        public async Task<ActionResult<ScanReport>> GetReportById(int id)
+        {
+            var report = await _context.ScanReports.FindAsync(id);
+            if (report == null) return NotFound();
+            return Ok(report);
+        }
+
+        // DELETE: api/Scanner/report/{id}
+        [HttpDelete("report/{id}")]
+        public async Task<IActionResult> DeleteReport(int id)
+        {
+            var report = await _context.ScanReports.FindAsync(id);
+            if (report == null) return NotFound();
+
+            _context.ScanReports.Remove(report);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = $"Report {id} deleted successfully" });
+        }
+
+
+
     }
 }

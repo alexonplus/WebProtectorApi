@@ -9,6 +9,22 @@ using WebProtectorApi.Entities;
 
 var builder = WebApplication.CreateBuilder(args);
 
+
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
+
+
+
+
 // 1. Database
 builder.Services.AddControllers();
 builder.Services.AddDbContext<WebProtectorDbContext>(options =>
@@ -50,6 +66,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

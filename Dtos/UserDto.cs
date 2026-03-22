@@ -12,8 +12,7 @@ namespace WebProtectorApi.Dtos
         [StringLength(100, MinimumLength = 8)] // minimum 8 characters for better security
         public string Password { get; set; } = string.Empty;
 
-        [Required]
-        public string Role { get; set; } = "User";
+       
     }
 
     public class UserLoginDto
