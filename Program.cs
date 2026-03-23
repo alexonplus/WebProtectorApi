@@ -11,6 +11,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 // 1. Database & Controllers
 builder.Services.AddControllers();
+
+// База данных
 builder.Services.AddDbContext<WebProtectorDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
@@ -52,6 +54,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerDocumentation();
 
+// --- 2. BUILD (Сборка приложения - вызывается ОДИН раз) ---
 var app = builder.Build();
 
 // 6. Pipeline (THE ORDER MATTERS HERE!)
@@ -65,6 +68,10 @@ if (app.Environment.IsDevelopment())
 app.UseCors("AllowFrontend");
 
 app.UseHttpsRedirection();
+
+// CORS всегда ПЕРЕД Auth
+app.UseCors("AllowAll");
+
 app.UseAuthentication();
 app.UseAuthorization();
 
