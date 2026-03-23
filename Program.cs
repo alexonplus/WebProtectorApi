@@ -9,8 +9,15 @@ using WebProtectorApi.Entities;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// --- 1. SERVICES (Настройка сервисов) ---
 
+builder.Services.AddControllers();
 
+// База данных
+builder.Services.AddDbContext<WebProtectorDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// CORS - разрешаем всё для фронтенда
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -21,20 +28,11 @@ builder.Services.AddCors(options =>
     });
 });
 
-
-
-
-
-// 1. Database
-builder.Services.AddControllers();
-builder.Services.AddDbContext<WebProtectorDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-
-// 2. Services
+// Сервисы сканера
 builder.Services.AddHttpClient<IScannerService, ScannerService>();
 builder.Services.AddScoped<IScannerService, ScannerService>();
 
-// 3. Auth
+// Настройка JWT Auth
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 var key = Encoding.ASCII.GetBytes(jwtSettings["Key"] ?? "DefaultSuperSecretKey1234567890");
 
@@ -52,13 +50,15 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-// 4. Swagger
+// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerDocumentation();
 
+// --- 2. BUILD (Сборка приложения - вызывается ОДИН раз) ---
 var app = builder.Build();
 
-// 5. Pipeline
+// --- 3. PIPELINE (Настройка промежуточного ПО) ---
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -66,8 +66,13 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// CORS всегда ПЕРЕД Auth
 app.UseCors("AllowAll");
+
 app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
+
 app.Run();
