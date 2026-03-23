@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 using WebProtectorApi.Data;
 using WebProtectorApi.Entities;
 using WebProtectorApi.Services;
@@ -28,10 +29,13 @@ namespace WebProtectorApi.Controllers
             if (string.IsNullOrEmpty(url))
                 return BadRequest("URL is required");
 
-            // 1. Perform local security analysis via service
+            // 1. Extract User ID from the authenticated token
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "anonymous";
+
+            // 2. Perform local security analysis via service
             var reportResult = await _scannerService.PerformLocalCheck(url);
 
-            // 2. Map service results to the ScanReport entity
+            // 3. Map service results and bind report to the current user
             var scanReport = new ScanReport
             {
                 Url = url,
@@ -39,10 +43,11 @@ namespace WebProtectorApi.Controllers
                 SecurityGrade = "A",        // Default grade for initial scan
                 SecurityScore = 100,        // Default score
                 ScannedAt = DateTime.Now,   // Timestamp of the operation
-                UserNote = string.Empty
+                UserNote = string.Empty,
+                UserId = userId             // LINKING REPORT TO USER
             };
 
-            // 3. Persist the report to the SQL database
+            // 4. Persist the report to the SQL database
             _context.ScanReports.Add(scanReport);
             await _context.SaveChangesAsync();
 
@@ -53,19 +58,46 @@ namespace WebProtectorApi.Controllers
         [HttpGet("reports")]
         public async Task<ActionResult<IEnumerable<ScanReport>>> GetMyReports()
         {
-            // Retrieve all scan history from the database
-            return await _context.ScanReports.ToListAsync();
+            // 1. Get current authenticated user's ID
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            // 2. Filter the database results to show ONLY reports belonging to this user
+            return await _context.ScanReports
+                .Where(r => r.UserId == userId)
+                .ToListAsync();
         }
 
         // PUT: api/Scanner/report/{id}/note
         [HttpPut("report/{id}/note")]
         public async Task<IActionResult> UpdateNote(int id, [FromBody] string note)
         {
-            var report = await _context.ScanReports.FindAsync(id);
-            if (report == null) return NotFound();
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-            // Allow users to add manual security notes to specific reports
+            // Find the report and ensure it belongs to the current user
+            var report = await _context.ScanReports
+                .FirstOrDefaultAsync(r => r.Id == id && r.UserId == userId);
+
+            if (report == null) return NotFound("Report not found or access denied.");
+
+            // Allow users to add manual security notes to their own reports
             report.UserNote = note;
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+        // DELETE: api/Scanner/report/{id}
+        [HttpDelete("report/{id}")]
+        public async Task<IActionResult> DeleteReport(int id)
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            var report = await _context.ScanReports
+                .FirstOrDefaultAsync(r => r.Id == id && r.UserId == userId);
+
+            if (report == null)
+                return NotFound("Report not found or access denied.");
+
+            _context.ScanReports.Remove(report);
             await _context.SaveChangesAsync();
 
             return NoContent();
