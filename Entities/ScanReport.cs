@@ -9,5 +9,7 @@
         public string FoundIssues { get; set; } = string.Empty;
         public string UserNote { get; set; } = string.Empty;
         public DateTime ScannedAt { get; set; } = DateTime.Now;
+
+        public string UserId { get; set; } = string.Empty;
     }
 }

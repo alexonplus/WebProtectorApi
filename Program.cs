@@ -9,30 +9,30 @@ using WebProtectorApi.Entities;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- 1. SERVICES (Настройка сервисов) ---
-
+// 1. Database & Controllers
 builder.Services.AddControllers();
 
 // База данных
 builder.Services.AddDbContext<WebProtectorDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// CORS - разрешаем всё для фронтенда
+// 2. CORS (Add this block to fix the "Server error")
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins("http://127.0.0.1:5500", "http://localhost:5500")
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
 });
 
-// Сервисы сканера
+// 3. Services
+// AddHttpClient already registers IScannerService as Scoped, 
+// so you don't need builder.Services.AddScoped again (Clean Code tip!)
 builder.Services.AddHttpClient<IScannerService, ScannerService>();
-builder.Services.AddScoped<IScannerService, ScannerService>();
 
-// Настройка JWT Auth
+// 4. Auth
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 var key = Encoding.ASCII.GetBytes(jwtSettings["Key"] ?? "DefaultSuperSecretKey1234567890");
 
@@ -50,20 +50,22 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-// Swagger
+// 5. Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerDocumentation();
 
 // --- 2. BUILD (Сборка приложения - вызывается ОДИН раз) ---
 var app = builder.Build();
 
-// --- 3. PIPELINE (Настройка промежуточного ПО) ---
-
+// 6. Pipeline (THE ORDER MATTERS HERE!)
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+// CRITICAL: UseCors MUST be before Authentication and Authorization
+app.UseCors("AllowFrontend");
 
 app.UseHttpsRedirection();
 
@@ -75,4 +77,4 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-app.Run();
+app.Run(); ;
