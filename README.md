@@ -1,26 +1,55 @@
-# WebProtector - Fullstack Security Scanner
+🛡️ WebProtector - Fullstack Security Scanner
+📝 Description
+WebProtector is a professional fullstack application designed for automated security analysis of web resources. It provides a complete flow for users to register, authenticate, and perform deep security scans on any URL.
 
-## 📝 Description
-WebProtector is a fullstack application for security analysis. Users can register, log in, and perform security scans on URLs. The results are stored in a Microsoft SQL Server database and managed through a dashboard.
+🧠 Smart Scoring Logic (The "Brain")
+Unlike basic scanners, WebProtector evaluates risks and calculates a Security Score and Grade:
 
-## 🚀 How to Run
-1. **Backend:** - Open the solution in Visual Studio.
-   - Run the project (F5) to start the API at `https://localhost:7290`.
-2. **Frontend:** - Open the frontend folder in VS Code.
-   - Run `index.html` using **Live Server** (Port 5500).
+Base Score: Every scan starts with a perfect 100 points.
 
-## 🔗 API Endpoints
-- `POST /api/Auth/register` - User registration.
-- `POST /api/Auth/login` - Authentication and JWT issuance.
-- `POST /api/Scanner/scan` - Execute security scan for a URL.
-- `GET /api/Scanner/reports` - Fetch scan history.
-- `DELETE /api/Scanner/report/{id}` - Delete a specific report.
+Automated Grading: The system assigns a letter grade (A, B, C, D, or F) based on the final calculated score.
 
-## ⚙️ Frontend & API Integration
-The Frontend communicates with the API using the **JavaScript Fetch API**. 
-- It sends JSON data to the backend endpoints.
-- It manages authentication by storing the **JWT Token** in `localStorage` and including it in the `Authorization` header for API requests.
+Risk-Based Penalties:
 
-## 🧠 Reflection
-- **What went well:** Core CRUD functionality (Create, Read, Delete) was successfully implemented. The connection between the Frontend and the SQL Server database is stable and functional.
-- **Challenges:** Configuring **Swagger** documentation and managing **JWT authentication settings** across different environment versions was difficult. Significant troubleshooting was required to handle **CORS policies** and ensure seamless communication between Port 5500 (Frontend) and Port 7290 (Backend).
+-40 points: If the site uses insecure HTTP instead of HTTPS.
+
+-20 points: For missing critical security headers like X-Frame-Options or Content-Security-Policy.
+
+-10 points: For missing X-Content-Type-Options.
+
+🚀 Key Features
+JWT Authentication: Secure login and registration using JSON Web Tokens stored in localStorage.
+
+Real-time Analysis: Performs local checks on target URLs and returns detailed reports.
+
+Scan History: Users can view their previous scans and manage their report history.
+
+Secure API: All scanner endpoints are protected by authentication to ensure data privacy.
+
+🛠 Tech Stack
+Backend: ASP.NET Core Web API, Entity Framework Core.
+
+Database: Microsoft SQL Server.
+
+Frontend: Modern JavaScript (ES6+), Fetch API, CSS3.
+
+⚙️ Setup & Run
+Backend: Open the solution in Visual Studio and run (F5). The API typically runs at https://localhost:7290.
+
+Frontend: Open the folder in VS Code and run index.html via Live Server (Port 5500).
+
+
+🧠 Reflection (Updated)
+🟢 What went well
+Core Logic Implementation: Successfully moved from hardcoded values to a dynamic security scoring system in the backend.
+
+Fullstack Integration: The connection between the C# scoring logic and the JavaScript dashboard is seamless.
+
+Security Foundation: Implemented JWT authentication and protected API endpoints using the [Authorize] attribute.
+
+🔴 Challenges
+Data Consistency: Ensuring that the SecurityScore and SecurityGrade calculated on the backend correctly map to the frontend display.
+
+Auth Flow: Managing token expiration and handling 401 Unauthorized errors during the development of the scanner.
+
+CORS & Environment: Coordinating communication between the Frontend (Port 5500) and the Backend API (Port 7290).
