@@ -10,7 +10,7 @@ namespace WebProtectorApi.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    // [Authorize] // Temporarily disabled for final testing and submission
+    [Authorize] // Requires JWT token for all actions
     public class ScannerController : ControllerBase
     {
         private readonly WebProtectorDbContext _context;
@@ -23,32 +23,54 @@ namespace WebProtectorApi.Controllers
         }
 
         // POST: api/Scanner/scan
-        // Initiates a security scan for a given URL and saves the result to the database
+        // Runs security analysis and calculates risk score based on findings
         [HttpPost("scan")]
         public async Task<ActionResult<ScanReport>> ScanWebsite([FromBody] string url)
         {
             if (string.IsNullOrEmpty(url))
-                return BadRequest("URL is required");
+                return BadRequest("URL is required.");
 
-            // 1. Extract User ID from the authenticated token
+            // Get current user ID from token claims
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "anonymous";
 
-            // 2. Perform local security analysis via service
+            // Execute local security analysis service
             var reportResult = await _scannerService.PerformLocalCheck(url);
 
-            // 3. Map service results and bind report to the current user
+            // --- RISK SCORING LOGIC ---
+            int score = 100; // Perfect base score
+
+            // Critical: Penalty for non-HTTPS connections
+            if (!url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                score -= 40;
+
+            // Penalty for missing security headers in report text
+            if (reportResult.Contains("Missing X-Frame-Options")) score -= 20;
+            if (reportResult.Contains("Missing Content-Security-Policy")) score -= 20;
+            if (reportResult.Contains("Missing X-Content-Type-Options")) score -= 10;
+
+            // Clamp score to minimum of 0
+            if (score < 0) score = 0;
+
+            // Determine Grade based on final Score
+            string grade = score >= 90 ? "A" :
+                           score >= 75 ? "B" :
+                           score >= 50 ? "C" :
+                           score >= 30 ? "D" : "F";
+            // ---------------------------
+
+            // Map data to the report entity
             var scanReport = new ScanReport
             {
                 Url = url,
-                FoundIssues = reportResult, // Storing detailed text report
-                SecurityGrade = "A",        // Default grade for initial scan
-                SecurityScore = 100,        // Default score
-                ScannedAt = DateTime.Now,   // Timestamp of the operation
+                FoundIssues = reportResult,
+                SecurityGrade = grade,
+                SecurityScore = score,
+                ScannedAt = DateTime.Now,
                 UserNote = string.Empty,
-                UserId = userId             // LINKING REPORT TO USER
+                UserId = userId
             };
 
-            // 4. Persist the report to the SQL database
+            // Persist report to the database
             _context.ScanReports.Add(scanReport);
             await _context.SaveChangesAsync();
 
@@ -56,39 +78,37 @@ namespace WebProtectorApi.Controllers
         }
 
         // GET: api/Scanner/reports
-        // Retrieves the full history of security scans from the database
+        // Retrieves only reports belonging to the authenticated user
         [HttpGet("reports")]
         public async Task<ActionResult<IEnumerable<ScanReport>>> GetMyReports()
         {
-            // 1. Get current authenticated user's ID
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-            // 2. Filter the database results to show ONLY reports belonging to this user
             return await _context.ScanReports
                 .Where(r => r.UserId == userId)
                 .ToListAsync();
         }
 
         // PUT: api/Scanner/report/{id}/note
-        // Allows users to update a manual security note for a specific report
+        // Allows user to update personal notes for a specific report
         [HttpPut("report/{id}/note")]
         public async Task<IActionResult> UpdateNote(int id, [FromBody] string note)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-            // Find the report and ensure it belongs to the current user
             var report = await _context.ScanReports
                 .FirstOrDefaultAsync(r => r.Id == id && r.UserId == userId);
 
             if (report == null) return NotFound("Report not found or access denied.");
 
-            // Allow users to add manual security notes to their own reports
             report.UserNote = note;
             await _context.SaveChangesAsync();
 
             return NoContent();
         }
+
         // DELETE: api/Scanner/report/{id}
+        // Permanently removes a report from the user's history
         [HttpDelete("report/{id}")]
         public async Task<IActionResult> DeleteReport(int id)
         {
